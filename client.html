@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset= "UTF-8">
+      <title>Simple Chat Room</title>
+      <style type="text/css">
+         body{ 
+            width: 910px; /* how wide to make your web page */
+            background-color: teal; /* what color to make the background */
+            height: auto;
+            margin: 0 auto;
+            padding: 0;
+            font:12px/16px Verdana, sans-serif; /* default font */
+         }
+         div#main{
+            background-color: #FFF;
+            height: auto;
+            margin: 0;
+            padding: 10px;
+         }
+
+
+         div.header{
+            width:885px;
+            height:auto;
+            background-color:#81DAF5;
+            border-style: outset;
+            border-color: #cecece;
+         }
+         div.textboxStyle{
+            width:660px;
+            height:650px;
+            /*line-height:650px;*/
+            font-size:15px;
+            background-color:#FFFFFF;
+            border-style: outset;
+            border-color: #cecece;
+            float:left;
+            overflow: auto;
+         }
+         div.sidebarStyle{
+            width:218px;
+            height:650px;
+            /*line-height:650px;*/
+            font-size:15px;
+            /*font-weight:bold;*/
+            background-color:#FFFFFF;
+            border-style: outset;
+            border-color: #cecece;
+            float:right;
+            overflow: auto;
+         }
+         div.footerStyle{
+            width:885px;
+            height:80px;
+            line-height:80px;
+            font-size:15px;
+            color:#fffaf3;
+            font-weight:bold;
+            background-color:#81DAF5;
+            border-style: outset;
+            border-color: #cecece;
+            clear: both;
+         }
+         div.roomlistStyle{
+            width:885px;
+            height:auto;
+            background-color:#81DAF5;
+            border-style: outset;
+            border-color: #cecece;
+            clear: both;
+         }
+         button.floatRight{
+            float: right;
+         }
+         p.systemNote{
+            color: red;
+         }
+
+      </style>
+   </head>
+   <body>
+      <div id="main">        
+      <div id="header" class="header">
+         <h1>Simple Chat Room</h1>
+         <label>Input your name</label>
+         <input id="username"/>
+         <button id="login">Start Chatting</button>
+      </div>
+      <div id="newroom"></div>
+      <div id="roomlist"></div>
+      <div id="textbox"></div>
+      <div id="sidebar"></div>
+      <div id="footer"></div>
+      
+      </div>
+      <script src="/socket.io/socket.io.js"></script>
+
+      <script type ="text/javascript">
+         document.getElementById("login").addEventListener("click",userLogin, false);
+         var alreadyLogin = false;
+         var alreadyInChatRoom = false;
+         var socketio = io.connect();
+         var usernameGlobal = null;
+         var currentRoom = null;
+         
+         socketio.on("repeatUsername", function(msg){
+            if (msg == usernameGlobal){
+               alert("Repeat Username, please input a new username.");
+            }
+         });
+         
+         socketio.on("loginSuccess", function(){
+           
+            var chatRoomListObj = document.getElementById("roomlist");
+            chatRoomListObj.setAttribute("class", "roomlistStyle");
+            alreadyLogin = true;
+            updateHeader();
+            //updateRoomlists();
+            createRoom();
+         });
+         
+         //Create a new room
+         function createRoom(){
+            var newRoom = document.getElementById("newroom");
+            newRoom.innerHTML = "<label for=\"roomname\">Room name: </label>" + 
+               "<input type=\"text\" id=\"roomname\" />" + 
+               "<label for=\"roompwd\">Password: </label>" +
+               "<input type=\"password\" id=\"roompwd\"/>" +
+               "<button id=\"createroom\">Create this room</button>";            
+            document.getElementById("createroom").addEventListener("click", function(){
+               var roomname = document.getElementById("roomname").value;
+               var roompwd = document.getElementById("roompwd").value;
+               if (roomname == "") {
+                  alert("Please enter a valid roomname");
+               }else{
+                  socketio.emit("newRoom", usernameGlobal, roomname, roompwd);
+               }               
+            }, false);
+         }
+         
+         socketio.on("newRoomResult", function(result, message, roomName, host){
+            //beta 0.7
+            if (usernameGlobal != null) {
+               
+            
+            if (host == usernameGlobal) {
+               alert(message);
+               if (result) {
+                  getInChatRoom(roomName);
+               }
+            }else if(currentRoom == null && result){
+               socketio.emit("onlyUpdataChatRoomList", usernameGlobal);
+            }
+            }
+         });
+         
+
+         //Check username
+         function userLogin() {
+            var username = document.getElementById("username").value;
+            
+            if (username == "") {
+               alert("Please input your username!");
+            } else {
+               usernameGlobal = username;
+               socketio.emit("join", username);
+            }
+         }
+         
+         //Update Header After Login
+         function updateHeader(){
+            var headerObj = document.getElementById("header");
+            headerObj.innerHTML = null;
+            headerObj.innerHTML = "<h1>Simple Chat Room</h1>"
+                                 + "<p>Welcome to the Chat Room, "
+                                 + usernameGlobal
+                                 + "<button id = \"logout\" class = \"floatRight\">Logout</button>"
+                                 + "</p>";
+            document.getElementById("logout").addEventListener("click",userLogout, false);
+            
+         }
+         
+         socketio.on("updateCurrentRoomUserList", function(roomname){
+            if (currentRoom == roomname) {
+               updateSidebar();
+            }
+         });
+         
+         //Show the users in current chat room
+         function updateSidebar(){
+            if (currentRoom != null) {
+               socketio.emit("sidebarList", currentRoom);
+            }
+         }
+         
+         socketio.on("sidebarResult", function(host, users, banList){
+            
+            var sidebar = document.getElementById("sidebar");
+            sidebar.setAttribute("class", "sidebarStyle");
+            sidebar.innerHTML = "<ul>Users in this room: ";
+            var len = users.length;
+            var banLen = banList.length;
+            if (usernameGlobal == host) {
+               for (var i = 0; i < len; i++){
+                  if (usernameGlobal == users[i]) {
+                     sidebar.innerHTML += "<li>" + users[i] + "</li>";
+                  }else{
+                     sidebar.innerHTML += "<li>" + users[i] + "<input type=\"radio\" name=\"selection\" value=\"" + users[i] + "\" /></li>";
+                  }                  
+               }
+               sidebar.innerHTML += "</ul>";
+               sidebar.innerHTML += "<button id=\"kick\">Kick out</button>" +
+                  "<button id=\"ban\">Ban</button>";
+               sidebar.innerHTML += "<ul>Current Ban List: ";
+               for (var i = 0; i < banLen; i++){
+                  sidebar.innerHTML += "<li>" + banList[i] + "<input type=\"radio\" name=\"selection\" value=\"" + banList[i] + "\" /></li>";                     
+               }
+               sidebar.innerHTML += "</ul><button id=\"unban\">Unban</button>";
+               
+               document.getElementById("kick").addEventListener("click", function(){
+                  var currentUsers = document.getElementsByName("selection");
+                  for (var i = 0; i < currentUsers.length; i++){
+                     if (currentUsers[i].checked) {
+                        var userSelected = currentUsers[i].value;
+                        socketio.emit("kick", userSelected, currentRoom);
+                        updateSidebar();
+                        break;
+                     }
+                  }                  
+               }, false);
+               document.getElementById("ban").addEventListener("click", function(){
+                  var currentUsers = document.getElementsByName("selection");
+                  for (var i = 0; i < currentUsers.length; i++){
+                     if (currentUsers[i].checked) {
+                        var userSelected = currentUsers[i].value;
+                        socketio.emit("ban", userSelected, currentRoom);
+                        updateSidebar();
+                        break;
+                     }
+                  }
+               }, false);
+               document.getElementById("unban").addEventListener("click", function(){
+                  var currentUsers = document.getElementsByName("selection");
+                  for (var i = 0; i < currentUsers.length; i++){
+                     if (currentUsers[i].checked) {
+                        var userSelected = currentUsers[i].value;
+                        socketio.emit("unban", userSelected, currentRoom);
+                        updateSidebar();
+                        break;
+                     }
+                  }
+               }, false);
+            }else{
+               for (var i = 0; i < len; i++){
+                  sidebar.innerHTML += "<li>" + users[i] + "<input type=\"radio\" name=\"selection\" value=\"" + users[i] + "\" /></li>";
+               }
+               sidebar.innerHTML += "</ul>";
+            }            
+         });
+         
+         //If the user is kicked out, the user loses the view of the current chat room
+         socketio.on("kickResult", function(userKicked, roomname){
+            if (currentRoom == roomname && userKicked == usernameGlobal) {
+               alert("You are being kicked out");
+               currentRoom = null;
+               cleanInterface("textbox");
+               cleanInterface("footer");
+               cleanInterface("sidebar");
+               //beta 0.7
+               cleanInterface("roomlist");
+               
+               createRoom();
+               socketio.emit("onlyUpdataChatRoomList", usernameGlobal);
+            }else if (currentRoom == roomname) {
+               updateSidebar();
+            }           
+         });
+         
+         //The user is notified when banned from room
+         socketio.on("banResult", function(userBanned, roomname){
+            if (userBanned == usernameGlobal) {
+               alert("You are now banned from " + roomname);
+               currentRoom = null;
+               cleanInterface("textbox");
+               cleanInterface("footer");
+               cleanInterface("sidebar");
+               //beta 0.7
+               cleanInterface("roomlist");
+               
+               createRoom();
+               socketio.emit("onlyUpdataChatRoomList", usernameGlobal);
+            }
+            if (currentRoom == roomname) {
+               updateSidebar();
+            }            
+         });
+         
+         //The user is notified when resumed from a ban
+         socketio.on("unbanResult", function(userUnbanned, roomname){
+            if (userUnbanned == usernameGlobal) {
+               alert("You are now unbanned from " + roomname);            
+            }
+         });
+         
+         var chatRoomListGlobal = {};
+         socketio.on("updateChatRoomList", function(chatRoomList){
+            //console.log(chatRoomList);
+            var chatRoomListObj = document.getElementById("roomlist");
+            chatRoomListObj.setAttribute("class", "roomlistStyle");
+            chatRoomListGlobal = chatRoomList;
+            var size = 0;
+            for (var i in chatRoomList){
+               if (chatRoomList.hasOwnProperty(i)){
+                  size++;
+               }
+            }
+            if (size == 0) {
+               updateRoomList("", "", false, false);
+            } else{
+               for (var i in chatRoomList){
+                  updateRoomList(i, chatRoomList[i].host, chatRoomList[i].password, true);
+               }
+            }
+         });
+         
+         //Display the available rooms to join
+         function updateRoomList(roomName, host, havePwd, someRooms) {
+            var roomlistParentObj = document.getElementById("roomlist");
+            //roomlistParentObj.setAttribute("class", "roomlistStyle");
+            if (!someRooms) {              
+               roomlistParentObj.appendChild(document.createTextNode("Currently no chat room available."));
+            } else{
+               var roomlistObj = document.createElement("li");
+               roomlistObj.setAttribute("id", "id" + roomName);
+               var pwd = "";
+               if (havePwd) {
+                  roomlistObj.setAttribute("value", "password");
+                  pwd = "(*)";
+               } else{
+                  roomlistObj.setAttribute("value", "nopassword");
+               }
+               
+               
+               roomlistObj.appendChild(document.createTextNode(pwd + " | Roomname: " + roomName + " | Host: " + host));
+               var enterChatRoomButtonObj = document.createElement("button");
+               enterChatRoomButtonObj.setAttribute("id", roomName);
+               enterChatRoomButtonObj.setAttribute("value", roomName);
+               enterChatRoomButtonObj.appendChild(document.createTextNode("Enter"));
+               roomlistObj.appendChild(enterChatRoomButtonObj);
+               roomlistParentObj.appendChild(roomlistObj);
+               //beta 0.6
+               document.getElementById(roomName).addEventListener("click", function(){
+                  checkRoomRights(document.getElementById(roomName).value);
+               }, false);
+
+            }
+         }
+         
+
+         function checkRoomRights(roomName){
+            //alert(roomName);
+            if (!chatRoomListGlobal[roomName].password) {
+               //beta 0.7
+               //getInChatRoom(roomName);
+               socketio.emit("compareChatRoomRights", {roomname: roomName, password: "" , username: usernameGlobal});
+            } else {
+               var inputPwd = window.prompt("Please input the password");
+               socketio.emit("compareChatRoomRights", {roomname: roomName, password: inputPwd , username: usernameGlobal});
+            }
+         }
+         
+         //beta 0.7
+         socketio.on("chatRoomRightsConfirm", function(data){
+            if (data["rights"]) {
+               getInChatRoom(data["roomname"]);
+            } else {
+               alert(data["message"]);
+            }
+         });
+         
+                 
+         //Display the selected chat room and any other associated information
+         function getInChatRoom(roomName){
+            cleanInterface("roomlist");
+            cleanInterface("newroom");
+            currentRoom = roomName;
+            
+            var roomObj = document.getElementById("roomlist");
+            roomObj.setAttribute("class", "roomlistStyle");
+            roomObj.appendChild(document.createTextNode("Current Chat Room: " + currentRoom));
+            roomObj.innerHTML += "<button id=\"leave\">Leave room</button>";            
+            //beta 0.9
+            roomObj.innerHTML += "<button id=\"destroy\">Destroy room</button>";
+            document.getElementById("destroy").addEventListener("click", function(){
+               socketio.emit("destroyRoom", currentRoom, usernameGlobal);
+            }, false);
+            document.getElementById("leave").addEventListener("click", function(){
+               socketio.emit("leaveRoom", usernameGlobal, currentRoom);
+               currentRoom = null;
+               cleanInterface("textbox");
+               cleanInterface("footer");
+               cleanInterface("sidebar");
+               createRoom();
+            }, false);
+            var textboxObj = document.getElementById("textbox");
+            textboxObj.setAttribute("class", "textboxStyle");
+            
+            var footerObj = document.getElementById("footer");
+            footerObj.setAttribute("class", "footerStyle");
+            footerObj.innerHTML = "<input type=\"text\" id=\"inputMessage\"/>"
+                                 + "<button onclick=\"sendMessage()\">send</button>"
+                                 + "<input type=\"checkbox\" id=\"private\">Private Message</input>"
+                                 + "<button class=\"floatRight\" onclick=\"cleanMessage()\">Clean Message</button>";
+            socketio.emit("getInChatRoom", currentRoom, usernameGlobal);
+            updateSidebar();
+         }         
+         //Listens for people leaving the room
+         socketio.on("leaveResult", function(roomname){
+            if (currentRoom == roomname) {
+               updateSidebar();
+            }else if(currentRoom == null){
+               cleanInterface("roomlist");
+               socketio.emit("onlyUpdataChatRoomList", usernameGlobal);
+            }
+         });
+         
+
+         
+         //Sending messages
+         function sendMessage(){
+            var msg = document.getElementById("inputMessage").value;
+            var prvt = document.getElementById("private").checked;
+            var currentUsers = document.getElementsByName("selection");
+            var userReceiver = usernameGlobal;
+            for (var i = 0; i < currentUsers.length; i++){
+               if (currentUsers[i].checked) {
+                  var userReceiver = currentUsers[i].value;
+                  break;
+               }
+            }
+            
+            if (prvt && userReceiver != usernameGlobal && msg != "") {
+               socketio.emit("privateMessage", {roomname: currentRoom, username: usernameGlobal, message:msg, receiver: userReceiver});
+            }
+            if (msg != "" && !prvt) {
+               socketio.emit("message_to_server", {roomname: currentRoom, username: usernameGlobal, message:msg});
+            }            
+         }         
+         //Listens for private message
+         socketio.on("privateMessageResult",function(data) {
+            if (data['roomname'] == currentRoom && usernameGlobal == data['receiver']) {
+               document.getElementById("textbox").appendChild(document.createElement("p"));
+               document.getElementById("textbox").appendChild(document.createTextNode(data['username'] + " sent you a private message: " + data['message']));
+            }else if (data['roomname'] == currentRoom && usernameGlobal == data['username']) {
+               document.getElementById("textbox").appendChild(document.createElement("p"));
+               document.getElementById("textbox").appendChild(document.createTextNode("You sent " + data['receiver'] + " a private message: " + data['message']));
+            }
+         });
+         //Listens for public message
+         socketio.on("message_to_client",function(data) {
+            if (data['roomname'] == currentRoom) {
+               document.getElementById("textbox").appendChild(document.createElement("p"));
+               document.getElementById("textbox").appendChild(document.createTextNode(data['username'] + " : " + data['message']));
+            }
+         });
+         
+         //Listens for System Announcement
+         socketio.on("SystemAnnouncement", function(data){
+            if (currentRoom != null && data["roomname"] == currentRoom) {
+               if (data["type"] == "In&Out") {
+                  var newMsgObj = document.createElement("p");
+                  newMsgObj.setAttribute("class", "systemNote");
+                  newMsgObj.appendChild(document.createTextNode(data["message"]));
+                  document.getElementById("textbox").appendChild(newMsgObj);
+               }
+            }            
+         });
+         
+         function cleanInterface(id) {
+            var cleanObj = document.getElementById(id);
+            cleanObj.removeAttribute("class");
+            cleanObj.innerHTML = null;
+         }
+         
+         function cleanMessage(){
+            var cleanMessageObj = document.getElementById("textbox");
+            cleanMessageObj.innerHTML = null;
+         }
+
+         
+         function addMessage(){
+            
+         }
+         
+         //beta 0.9
+         socketio.on("destroyRoomResult", function(success, message, host){
+            if (success){
+               if (host == usernameGlobal) {
+                  currentRoom = null;
+                  cleanInterface("textbox");
+                  cleanInterface("footer");
+                  cleanInterface("sidebar");
+                  cleanInterface("roomlist");               
+                  createRoom();
+                  socketio.emit("onlyUpdataChatRoomList", usernameGlobal);
+               }else if(currentRoom == null){
+                  cleanInterface("roomlist");
+                  socketio.emit("onlyUpdataChatRoomList", usernameGlobal);
+               }
+            }else{
+               alert(message);
+            }
+         });
+         
+         
+         function userLogout() {
+            //beta0.7          
+            socketio.emit("userLogout", usernameGlobal);
+            //socketio.emit("leaveRoom", usernameGlobal, currentRoom);
+         }
+                          
+         socketio.on("logoutSuccess", function(name){
+            //beta 0.7
+            if (usernameGlobal == name && usernameGlobal != null) {      
+               logoutInterface();
+               alreadyLogin = false;
+               alreadyInChatRoom = false;  
+               usernameGlobal = null;
+               document.getElementById("newroom").innerHTML = null;
+               socketio.emit("");
+            }
+         });
+         
+         function logoutInterface() {
+            var headerObj = document.getElementById("header");
+            headerObj.innerHTML = null;
+            headerObj.innerHTML = "<h1>Simple Chat Room</h1>"
+                                 + "<label>Input your name</label>"
+                                 + "<input id=\"username\"/>"
+                                 + "<button id=\"login\">Start Chatting</button>";
+            document.getElementById("login").addEventListener("click",userLogin, false);
+            //var chatRoomListObj = document.getElementById("roomlist");
+            //chatRoomListObj.removeAttribute("class");
+            //chatRoomListObj.innerHTML = null;
+            //var sidebar = document.getElementById("sidebar");
+            //sidebar.removeAttribute("class");
+            //sidebar.innerHTML = null;
+            
+            cleanInterface("roomlist");
+            cleanInterface("textbox");
+            cleanInterface("footer");
+            cleanInterface("sidebar");
+         }
+         
+      </script>
+   </body>
+</html>
