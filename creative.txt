@@ -1,0 +1,10 @@
+Name: Yu Tong
+ID: 444098
+
+Link to instance: http://ec2-54-69-117-168.us-west-2.compute.amazonaws.com:3456
+
+Description: 
+1. Banned users can be unbanned by the room host
+2. Room host can destroy the rooms he/she created
+3. We have a system announcement in place that makes announcement to the users in the chat room when either new users enter the room and current users being kicked out or banned
+4. Users can also clean the messages in the chat board
